@@ -685,7 +685,7 @@ def publish_discovery(dev, sub=''):
             'curr_temp_tpl': '{{ value_json.cur_temp }}',
             'modes': ['off', 'heat'],
             'min_temp': 20,
-            'max_temp': 25,
+            'max_temp': 30,
             'ret': 'false',
             'qos': 0,
             'uniq_id': '{}_{}_{}{}'.format('kocom', 'wallpad', dev, num),
