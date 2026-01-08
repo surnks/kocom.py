@@ -508,28 +508,37 @@ def publish_status(p):
 
 def packet_processor(p):
     logtxt = ""
-    if p['type']=='ack' and p['src']=='wallpad':  # ack from wallpad
-    #if p['type']=='send' and p['dest']=='wallpad':  # response packet to wallpad
-        if p['dest'] == 'thermo' and p['cmd']=='state':
-        #if p['src'] == 'thermo' and p['cmd']=='state':
-            state = thermo_parse(p['value'])
-            logtxt='[MQTT publish|thermo] room{} data[{}]'.format(p['dest_subid'], state)
-            mqttc.publish("kocom/room/thermo/" + p['dest_subid'] + "/state", json.dumps(state))
-        elif p['dest'] == 'light' and p['cmd']=='state':
-        #elif p['src'] == 'light' and p['cmd']=='state':
-            state = light_parse(p['value'])
-            logtxt='[MQTT publish|light] data[{}]'.format(state)
-            mqttc.publish("kocom/livingroom/light/state", json.dumps(state))
-        elif p['dest'] == 'fan' and p['cmd']=='state':
-        #elif p['src'] == 'fan' and p['cmd']=='state':
-            state = fan_parse(p['value'])
-            logtxt='[MQTT publish|fan] data[{}]'.format(state)
-            mqttc.publish("kocom/livingroom/fan/state", json.dumps(state))    
-        elif p['dest'] == 'gas':
-        #elif p['src'] == 'gas':
-            state = {'state': p['cmd']}
-            logtxt='[MQTT publish|gas] data[{}]'.format(state)
-            mqttc.publish("kocom/livingroom/gas/state", json.dumps(state))
+    # [수정] type이 ack든 send든, 그리고 누가 보냈든 상관없이 내용(cmd)을 보고 판단하도록 변경
+    
+    # 1. 난방기(Thermo) 관련 패킷 처리
+    if 'thermo' in [p['src'], p['dest']] and p['cmd']=='state':
+        # 난방기가 보낸 정보(src=thermo) 혹은 난방기에게 가는 정보(dest=thermo) 모두 해석
+        state = thermo_parse(p['value'])
+        # ID는 보낸 놈(src)이 thermo면 src_subid, 받는 놈(dest)이 thermo면 dest_subid 사용
+        sub_id = p['src_subid'] if p['src'] == 'thermo' else p['dest_subid']
+        
+        logtxt='[MQTT publish|thermo] room{} data[{}]'.format(sub_id, state)
+        mqttc.publish("kocom/room/thermo/" + sub_id + "/state", json.dumps(state))
+
+    # 2. 조명(Light) 관련 패킷 처리
+    elif 'light' in [p['src'], p['dest']] and p['cmd']=='state':
+        state = light_parse(p['value'])
+        logtxt='[MQTT publish|light] data[{}]'.format(state)
+        mqttc.publish("kocom/livingroom/light/state", json.dumps(state))
+
+    # 3. 팬(Fan) 관련 패킷 처리
+    elif 'fan' in [p['src'], p['dest']] and p['cmd']=='state':
+        state = fan_parse(p['value'])
+        logtxt='[MQTT publish|fan] data[{}]'.format(state)
+        mqttc.publish("kocom/livingroom/fan/state", json.dumps(state))    
+
+    # 4. 가스(Gas) 관련 패킷 처리
+    elif p['src'] == 'gas' or p['dest'] == 'gas':
+        state = {'state': p['cmd']}
+        logtxt='[MQTT publish|gas] data[{}]'.format(state)
+        mqttc.publish("kocom/livingroom/gas/state", json.dumps(state))
+
+    # 5. 엘리베이터(Elevator)
     elif p['type']=='send' and p['dest']=='elevator':
         floor = int(p['value'][2:4],16)
         rs485_floor = int(config.get('Elevator','rs485_floor', fallback=0))
@@ -541,7 +550,6 @@ def packet_processor(p):
             state = {'state': 'off'}
         logtxt='[MQTT publish|elevator] data[{}]'.format(state)
         mqttc.publish("kocom/myhome/elevator/state", json.dumps(state))
-        # aa5530bc0044000100010300000000000000350d0d
 
     if logtxt != "" and config.get('Log', 'show_mqtt_publish') == 'True':
         logging.info(logtxt)
